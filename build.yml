@@ -1,0 +1,47 @@
+name: Build JDCloud RE-CS-02 Firmware
+
+on:
+  push:
+    branches:
+      - main  # 每次提交代码到主分支时触发编译
+  pull_request:
+    branches:
+      - main  # 每次 PR 到主分支时触发编译
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # 使用 Ubuntu 最新的虚拟机
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2  # 获取 GitHub 仓库中的代码
+
+      - name: Set up OpenWrt build environment
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential ccache subversion
+          # 如果需要其他依赖项，也可以在这里添加安装命令
+
+      - name: Prepare build
+        run: |
+          git clone https://github.com/coolsnowwolf/lede.git lede
+          cd lede
+          ./scripts/feeds update -a  # 更新 feeds
+          ./scripts/feeds install -a  # 安装所有 feeds
+
+      - name: Add custom DTS file
+        run: |
+          mkdir -p lede/target/linux/qualcommax/files/arch/arm64/boot/dts/qcom
+          wget https://raw.githubusercontent.com/coolsnowwolf/lede/master/target/linux/qualcommax/files/arch/arm64/boot/dts/qcom/ipq6010-re-cs-02.dts -O lede/target/linux/qualcommax/files/arch/arm64/boot/dts/qcom/ipq6010-re-cs-02.dts
+
+      - name: Build firmware
+        run: |
+          cd lede
+          make menuconfig  # 如果需要手动选择配置，可以启用这个命令
+          make -j$(nproc)  # 开始编译，使用所有可用的 CPU 核心
+          
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: firmware
+          path: lede/bin/targets/firmware.bin  # 根据实际路径调整
